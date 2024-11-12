@@ -29,8 +29,12 @@ app.use(express.json());
 app.post(
   "/api/register",
   [
-    body("username").isLength({ min: 3 }),
-    body("password").isLength({ min: 5 }),
+    body("username")
+      .isLength({ min: 3 })
+      .withMessage("Username must be at least 3 characters"),
+    body("password")
+      .isLength({ min: 5 })
+      .withMessage("Password must be at least 5 characters"),
   ],
   async (req, res) => {
     const errors = validationResult(req);
@@ -43,7 +47,7 @@ app.post(
     try {
       const existingUser = await User.findOne({ username });
       if (existingUser) {
-        return res.status(400).json({ error: "User already exists" });
+        return res.status(400).json({ error: "Username already taken" });
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -53,6 +57,7 @@ app.post(
 
       res.status(201).json({ message: "User registered successfully" });
     } catch (error) {
+      console.error(error);
       res.status(500).json({ error: "Server error" });
     }
   }
@@ -109,6 +114,52 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
+app.post("/api/chat/:chatId/invite", authMiddleware, async (req, res) => {
+  const { chatId } = req.params;
+  const inviteeUsername = req.body.invitee; // invitee is a username, not userId
+  const userId = req.user.userId;
+
+  try {
+    // Find the chat by its chatId
+    const chat = await Chat.findById(chatId);
+
+    // If chat doesn't exist, return an error
+    if (!chat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    // Check if the user making the request is the owner
+    if (chat.owner_id.toString() !== userId) {
+      return res.status(403).json({
+        error: "You do not have permission to invite users to this chat",
+      });
+    }
+
+    // Find the invitee user by their username
+    const invitee = await User.findOne({ username: inviteeUsername });
+
+    // If the invitee does not exist, return an error
+    if (!invitee) {
+      return res.status(404).json({ error: "Invitee not found" });
+    }
+
+    const inviteeId = invitee._id; // Get the userId from the invitee object
+
+    // Add the invitee to the chat's users array if they are not already in it
+    if (!chat.users.includes(inviteeId)) {
+      chat.users.push(inviteeId);
+      console.log(`User ${inviteeUsername} invited to chat.`);
+      await chat.save();
+      res.status(200).json({ message: "User invited successfully" });
+    } else {
+      res.status(400).json({ error: "User is already in the chat" });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error inviting user to chat" });
+  }
+});
+
 app.post("/api/chat", authMiddleware, async (req, res) => {
   const { chat_name } = req.body;
   const userId = req.user.userId;
@@ -129,7 +180,9 @@ app.get("/api/chat", authMiddleware, async (req, res) => {
   const userId = req.user.userId;
 
   try {
-    const chats = await Chat.find({ owner_id: userId });
+    const chats = await Chat.find({
+      $or: [{ owner_id: userId }, { users: userId }],
+    });
 
     if (!chats.length) {
       return res.status(404).json({ error: "No chats found" });
@@ -144,6 +197,7 @@ app.get("/api/chat", authMiddleware, async (req, res) => {
 
 app.post("/api/chat/:chatId/channel", authMiddleware, async (req, res) => {
   const { chatId } = req.params;
+
   const { channel_name, channel_type } = req.body;
 
   try {

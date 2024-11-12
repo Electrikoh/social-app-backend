@@ -7,6 +7,12 @@ const chatSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
+  users: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
   created_at: { type: Date, default: Date.now },
 });
 
