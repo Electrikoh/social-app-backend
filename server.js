@@ -13,8 +13,9 @@ const Message = require("./models/Message");
 const User = require("./models/User");
 const { body, validationResult } = require("express-validator");
 const cors = require("cors");
-const Chat = require("./models/Chat");
+const Chat = require("./models/Group");
 const Channel = require("./models/Channel");
+const Group = require("./models/Group");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -54,7 +55,7 @@ wss.on("connection", (ws) => {
     console.log("Client disconnected");
   });
 });
-
+//register
 app.post(
   "/api/register",
   [
@@ -91,7 +92,7 @@ app.post(
     }
   }
 );
-
+// login
 app.post(
   "/api/login",
   [body("username").not().isEmpty(), body("password").not().isEmpty()],
@@ -127,7 +128,7 @@ app.post(
     }
   }
 );
-
+// add this to all routes to auth people
 const authMiddleware = (req, res, next) => {
   const token = req.headers["authorization"]?.split(" ")[1];
   if (!token) {
@@ -142,96 +143,89 @@ const authMiddleware = (req, res, next) => {
     res.status(401).json({ error: "Invalid token" });
   }
 };
-
-app.post("/api/chat/:chatId/invite", authMiddleware, async (req, res) => {
-  const { chatId } = req.params;
-  const inviteeUsername = req.body.invitee; // invitee is a username, not userId
+// Add someone to a group
+app.post("/api/groups/:groupId/invite", authMiddleware, async (req, res) => {
+  const { groupId } = req.params;
+  const inviteeUsername = req.body.invitee;
   const userId = req.user.userId;
 
   try {
-    // Find the chat by its chatId
-    const chat = await Chat.findById(chatId);
+    const group = await Group.findById(groupId);
 
-    // If chat doesn't exist, return an error
-    if (!chat) {
-      return res.status(404).json({ error: "Chat not found" });
+    if (!group) {
+      return res.status(404).json({ error: "Group not found" });
     }
 
-    // Check if the user making the request is the owner
-    if (chat.owner_id.toString() !== userId) {
+    if (group.owner_id.toString() !== userId) {
       return res.status(403).json({
-        error: "You do not have permission to invite users to this chat",
+        error: "You do not have permission to invite users to this group",
       });
     }
 
-    // Find the invitee user by their username
     const invitee = await User.findOne({ username: inviteeUsername });
 
-    // If the invitee does not exist, return an error
     if (!invitee) {
       return res.status(404).json({ error: "Invitee not found" });
     }
 
-    const inviteeId = invitee._id; // Get the userId from the invitee object
+    const inviteeId = invitee._id;
 
-    // Add the invitee to the chat's users array if they are not already in it
-    if (!chat.users.includes(inviteeId)) {
-      chat.users.push(inviteeId);
-      console.log(`User ${inviteeUsername} invited to chat.`);
-      await chat.save();
+    if (!group.users.includes(inviteeId)) {
+      group.users.push(inviteeId);
+      console.log(`User ${inviteeUsername} invited to group.`);
+      await group.save();
       res.status(200).json({ message: "User invited successfully" });
     } else {
-      res.status(400).json({ error: "User is already in the chat" });
+      res.status(400).json({ error: "User is already in the group" });
     }
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Error inviting user to chat" });
+    res.status(500).json({ error: "Error inviting user to group" });
   }
 });
-
-app.post("/api/chat", authMiddleware, async (req, res) => {
-  const { chat_name } = req.body;
+// Create a new group
+app.post("/api/groups", authMiddleware, async (req, res) => {
+  const { group_name } = req.body;
   const userId = req.user.userId;
 
   try {
-    const chat = new Chat({
-      chat_name,
+    const group = new Group({
+      group_name,
       owner_id: userId,
     });
-    await chat.save();
-    res.status(201).json({ message: "Chat created successfully", chat });
+    await group.save();
+    res.status(201).json({ message: "Group created successfully", group });
   } catch (error) {
-    res.status(500).json({ error: "Error creating chat" });
+    res.status(500).json({ error: "Error creating group" });
   }
 });
-
-app.get("/api/chat", authMiddleware, async (req, res) => {
+// Get all groups you're in
+app.get("/api/groups", authMiddleware, async (req, res) => {
   const userId = req.user.userId;
 
   try {
-    const chats = await Chat.find({
+    const groups = await Group.find({
       $or: [{ owner_id: userId }, { users: userId }],
     });
 
-    if (!chats.length) {
-      return res.status(404).json({ error: "No chats found" });
+    if (!groups.length) {
+      return res.status(404).json({ error: "No groups found" });
     }
 
-    res.status(200).json({ chats });
+    res.status(200).json({ groups });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Error fetching chats" });
+    res.status(500).json({ error: "Error fetching groups" });
   }
 });
-
-app.post("/api/chat/:chatId/channel", authMiddleware, async (req, res) => {
-  const { chatId } = req.params;
-
+// Create a channel in a group
+app.post("/api/groups/:groupId", authMiddleware, async (req, res) => {
+  const { groupId } = req.params;
   const { channel_name, channel_type } = req.body;
 
   try {
     const channel = new Channel({
-      chat_id: chatId,
+      group_id: groupId,
       channel_name,
       channel_type,
     });
@@ -242,12 +236,12 @@ app.post("/api/chat/:chatId/channel", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Error creating channel" });
   }
 });
-
-app.get("/api/chat/:chatId/channel", authMiddleware, async (req, res) => {
-  const { chatId } = req.params;
+// Get channels in a group
+app.get("/api/groups/:groupId", authMiddleware, async (req, res) => {
+  const { groupId } = req.params;
 
   try {
-    const channels = await Channel.find({ chat_id: chatId });
+    const channels = await Channel.find({ group_id: groupId });
 
     if (!channels.length) {
       return res.status(404).json({ error: "No channels found" });
@@ -259,35 +253,30 @@ app.get("/api/chat/:chatId/channel", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Error fetching channels" });
   }
 });
+// Get messages in a channel
+app.get("/api/groups/:groupId/:channelId", authMiddleware, async (req, res) => {
+  const { groupId, channelId } = req.params;
 
-app.get(
-  "/api/chat/:chatId/channel/:channelId",
-  authMiddleware,
-  async (req, res) => {
-    const { chatId, channelId } = req.params;
+  try {
+    const messages = await Message.find({ channel: channelId })
+      .populate("sender", "username")
+      .sort({ timestamp: 1 });
 
-    try {
-      // Find messages for the specified channel
-      const messages = await Message.find({ channel: channelId })
-        .populate("sender", "username") // Populate sender with username
-        .sort({ timestamp: 1 }); // Sort messages by timestamp ascending
-
-      if (!messages.length) {
-        return res
-          .status(404)
-          .json({ error: "No messages found in this channel" });
-      }
-
-      res.status(200).json({ messages });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Error fetching messages" });
+    if (!messages.length) {
+      return res
+        .status(404)
+        .json({ error: "No messages found in this channel" });
     }
-  }
-);
 
+    res.status(200).json({ messages });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error fetching messages" });
+  }
+});
+// Send a message in a channel
 app.post(
-  "/api/chat/:chatId/channel/:channelId",
+  "/api/groups/:groupId/:channelId",
   authMiddleware,
   async (req, res) => {
     const { chatId, channelId } = req.params;

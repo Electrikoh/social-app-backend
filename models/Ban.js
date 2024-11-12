@@ -6,9 +6,9 @@ const banSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
-  chat_id: {
+  group_id: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Chat",
+    ref: "Group",
     required: true,
   },
   channel_id: { type: mongoose.Schema.Types.ObjectId, ref: "Channel" }, // optional if it's a global ban

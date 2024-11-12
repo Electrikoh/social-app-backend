@@ -6,9 +6,9 @@ const userRoleSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
-  chat_id: {
+  group_id: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Chat",
+    ref: "Group",
     required: true,
   },
   role_id: {

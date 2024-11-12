@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
-const chatSchema = new mongoose.Schema({
-  chat_name: { type: String, required: true },
+const groupSchema = new mongoose.Schema({
+  group_name: { type: String, required: true },
   owner_id: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
@@ -16,6 +16,6 @@ const chatSchema = new mongoose.Schema({
   created_at: { type: Date, default: Date.now },
 });
 
-const Chat = mongoose.model("Chat", chatSchema);
+const Group = mongoose.model("Group", groupSchema);
 
-module.exports = Chat;
+module.exports = Group;

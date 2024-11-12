@@ -1,9 +1,9 @@
 const mongoose = require("mongoose");
 
 const channelSchema = new mongoose.Schema({
-  chat_id: {
+  group_id: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Chat",
+    ref: "Group",
     required: true,
   },
   channel_name: { type: String, required: true },
