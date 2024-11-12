@@ -2,6 +2,10 @@
 require("dotenv").config();
 
 const express = require("express");
+
+const http = require("http"); // Import http to create a server
+const WebSocket = require("ws");
+
 const mongoose = require("./db");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -16,6 +20,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const frontendURL = process.env.FRONTEND_URL;
+const websocketPort = 3002; // mora da bide razlicno od backend port poradi skill issue
 
 app.use(
   cors({
@@ -25,6 +30,30 @@ app.use(
   })
 );
 app.use(express.json());
+
+const wss = new WebSocket.WebSocketServer({ port: websocketPort });
+
+wss.broadcast = function broadcast(data) {
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(data));
+    }
+  });
+};
+
+wss.on("connection", (ws) => {
+  console.log("New WebSocket connection");
+  ws.on("message", (msg) => {
+    console.log("Received message:", msg);
+    // Parse and broadcast the message
+    const parsedMessage = JSON.parse(msg);
+    wss.broadcast(parsedMessage);
+  });
+
+  ws.on("close", () => {
+    console.log("Client disconnected");
+  });
+});
 
 app.post(
   "/api/register",
@@ -273,15 +302,19 @@ app.post(
       }
 
       // Create a new message
-      const message = new Message({
+      const newMessage = await new Message({
         content,
         sender: senderId,
         channel: channelId,
-      });
+      }).save();
 
-      await message.save();
+      const messageWithSender = await Message.findById(newMessage._id).populate(
+        "sender",
+        "username"
+      );
+      wss.broadcast({ message: messageWithSender });
 
-      res.status(201).json({ message: "Message sent successfully", message });
+      res.status(201).json({ message: "Message sent successfully" });
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: "Error sending message" });
