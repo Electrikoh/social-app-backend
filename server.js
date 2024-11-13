@@ -184,7 +184,7 @@ app.post("/api/groups/:groupId/invite", authMiddleware, async (req, res) => {
   }
 });
 // Create a new group
-app.post("/api/groups", authMiddleware, async (req, res) => {
+app.post("/api/groups/new", authMiddleware, async (req, res) => {
   const { group_name } = req.body;
   const userId = req.user.userId;
 
@@ -219,7 +219,7 @@ app.get("/api/groups", authMiddleware, async (req, res) => {
   }
 });
 // Create a channel in a group
-app.post("/api/groups/:groupId", authMiddleware, async (req, res) => {
+app.post("/api/groups/:groupId/new", authMiddleware, async (req, res) => {
   const { groupId } = req.params;
   const { channel_name, channel_type } = req.body;
 
