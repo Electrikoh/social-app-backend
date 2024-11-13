@@ -194,6 +194,14 @@ app.post("/api/groups/new", authMiddleware, async (req, res) => {
       owner_id: userId,
     });
     await group.save();
+
+    const channel = new Channel({
+      group_id: group._id,
+      channel_name: "chat",
+      channel_type: "text",
+    });
+
+    await channel.save();
     res.status(201).json({ message: "Group created successfully", group });
   } catch (error) {
     res.status(500).json({ error: "Error creating group" });
